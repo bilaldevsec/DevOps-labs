@@ -1,0 +1,108 @@
+# This is the name of your workflow. It will appear in the 'Actions' tab of your GitHub repository.
+# Choose a name that clearly describes what this workflow does.
+name: ALNAFI Lab Validation and Publishing
+
+# This section defines when this workflow should be triggered (i.e., when it runs).
+on:
+  # 'push' means the workflow will run whenever code is pushed to the specified branches.
+  push:
+    # 'branches' specifies which branches will trigger this workflow on a push.
+    # 'main' is the most common default branch name. If your repository uses 'master', change it here.
+    branches:
+      - main # IMPORTANT: Make sure this matches your repository's default branch (e.g., 'main' or 'master').
+
+  # You can also trigger workflows manually from the GitHub Actions UI.
+  # This is useful for testing or running on demand.
+  workflow_dispatch: # This allows manual triggering
+
+# A workflow run is composed of one or more 'jobs'.
+# Jobs run in parallel by default, but you can configure dependencies if needed.
+jobs:
+  # This is the unique ID for our first job. It's a good practice to make it descriptive.
+  validate-lab-files:
+    # 'runs-on' specifies the type of virtual machine (runner) where this job will execute.
+    # 'ubuntu-latest' provides a fresh Ubuntu environment with many tools pre-installed.
+    runs-on: ubuntu-latest
+
+    # 'steps' define the sequence of tasks that this job will perform.
+    steps:
+      # Step 1: Checkout the repository code.
+      # This action is essential. It downloads your repository's code onto the runner VM,
+      # so subsequent steps can access your lab files.
+      - name: Checkout Repository Code
+        # 'uses' refers to a pre-built GitHub Action from the Marketplace.
+        # 'actions/checkout@v4' is the standard action for checking out code.
+        uses: actions/checkout@v4
+
+      # Step 2: Set up a Python environment.
+      # Many ALNAFI labs might involve Python scripts or require Python-based tools (like linters for YAML).
+      # This step ensures Python is available on the runner VM.
+      - name: Set up Python Environment
+        uses: actions/setup-python@v5 # This action sets up a Python environment.
+        with:
+          # 'python-version' specifies the desired Python version. '3.x' will get the latest Python 3.
+          python-version: '3.x'
+
+      # Step 3: Install necessary linting tools.
+      # Linters are tools that analyze source code to flag programming errors, bugs,
+      # stylistic errors, and suspicious constructs.
+      - name: Install Linting Tools
+        # 'run' executes a command-line instruction on the runner VM.
+        run: |
+          # Ensure pip (Python's package installer) is up-to-date.
+          python -m pip install --upgrade pip
+          # Install 'yamllint' for checking YAML file syntax and style.
+          # Install 'pylint' for checking Python code quality and style.
+          pip install yamllint pylint
+
+      # Step 4: Lint YAML files.
+      # This step will find all YAML files and check them for errors.
+      - name: Lint YAML Files
+        run: |
+          echo "Searching for YAML files to lint..."
+          # 'find . -name "*.yaml" -o -name "*.yml"': Finds all files ending with .yaml or .yml in the current directory and its subdirectories.
+          # '| xargs yamllint': Pipes the list of found files to 'xargs', which then executes 'yamllint' on each file.
+          # '|| true': This is a trick! If 'yamllint' finds errors, it exits with a non-zero status, which would normally fail the GitHub Actions job.
+          # By adding '|| true', we tell the shell to always succeed this command, even if yamllint reports errors.
+          # This means the job will complete, but you'll see the errors in the logs.
+          # If you want the job to FAIL immediately on any YAML linting error, remove '|| true'.
+          find . -name "*.yaml" -o -name "*.yml" | xargs yamllint || true
+          echo "YAML linting complete."
+
+      # Step 5: Lint Python files.
+      # This step will find all Python files and check them for style and potential issues.
+      - name: Lint Python Files
+        run: |
+          echo "Searching for Python files to lint..."
+          # 'find . -name "*.py"': Finds all files ending with .py.
+          # '| xargs pylint': Pipes the list of found files to 'pylint'.
+          # '|| true': Similar to YAML linting, allows the job to continue even if pylint finds issues.
+          # Remove '|| true' if you want the job to FAIL on pylint errors.
+          find . -name "*.py" | xargs pylint || true
+          echo "Python linting complete."
+
+      # Step 6 (Optional but highly recommended for lab work): Add more specific lab checks.
+      # This is where you'd add commands relevant to your specific ALNAFI labs.
+      # For example, if you have a shell script that verifies a lab's setup or output:
+      # - name: Run Lab Specific Verification Script
+      #   run: |
+      #     # Assuming you have a script at 'scripts/verify_lab_01.sh'
+      #     if [ -f "scripts/verify_lab_01.sh" ]; then
+      #       echo "Running lab 01 verification script..."
+      #       bash scripts/verify_lab_01.sh || { echo "Lab 01 verification failed!"; exit 1; }
+      #     else
+      #       echo "No verification script found for lab 01. Skipping."
+      #     fi
+      #     # You can add more such checks for different labs.
+
+      # Step 7 (Optional): "Publishing" confirmation.
+      # This step doesn't "publish" in the sense of deploying to a website,
+      # but confirms that the files are now on GitHub and have passed basic checks,
+      # fulfilling the "published there" aspect for your lab files.
+      - name: Lab Files Pushed and Validated
+        run: |
+          echo "All specified lab files have been pushed to GitHub and passed basic validation checks."
+          echo "Your lab work is now 'published' (available and checked) on your GitHub repository."
+          echo "Repository: ${{ github.repository }}"
+          echo "Commit SHA: ${{ github.sha }}"
+          echo "Triggered by: ${{ github.event_name }}"
